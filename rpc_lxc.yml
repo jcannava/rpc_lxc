@@ -63,6 +63,7 @@
     - name: check for already created ssh-key
       action: shell ls -la /root/.ssh/id_rsa
       register: ssh_result
+      ignore_errors: yes
 
     - name: generate ssh-keys
       command: ssh-keygen -b 2048 -t rsa -f /root/.ssh/id_rsa -N ''
