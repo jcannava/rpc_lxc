@@ -61,7 +61,7 @@
 
   tasks:
     - name: check for already created ssh-key
-      action: shell ls -la /root/.ssh
+      action: shell ls -la /root/.ssh/id_rsa
       register: ssh_result
 
     - name: generate ssh-keys
