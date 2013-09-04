@@ -202,12 +202,12 @@
       register: gc_result
       ignore_errors: yes
 
-    - name: checkout grizzly
-      shell: chdir=${rpc_container_path}/root/chef-cookbooks git checkout ${openstack-ver}
-
     - name: clone rcbops git repo for cookbooks
       action: shell git clone --recursive https://github.com/rcbops/chef-cookbooks ${rpc_container_path}/root/chef-cookbooks
       when: gc_result|failed
+
+    - name: checkout grizzly
+      shell: chdir=${rpc_container_path}/root/chef-cookbooks git checkout ${openstack-ver}
 
     - name: update cookbooks
       shell: chdir=${rpc_container_path}/root/chef-cookbooks git pull --recurse-submodules=yes
