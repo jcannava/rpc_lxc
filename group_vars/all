@@ -1,0 +1,7 @@
+---
+creds: ~/.ansible_rax_creds
+region: ORD
+name: docker-server
+flavor: 6
+image: 1bbc5e56-ca2c-40a5-94b8-aa44822c3947 # recommend raring for ease of deployment
+openstack-ver: grizzly

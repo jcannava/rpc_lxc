@@ -1,0 +1,5 @@
+bookshelf['vip'] = '{{ chef_server_ip.stdout }}'
+lb['api_fqdn'] = '{{ chef_server_ip.stdout }}'
+lb['web_ui_fqdn'] = '{{ chef_server_ip.stdout }}'
+nginx['server_name'] = '{{ chef_server_ip.stdout }}'
+nginx['url'] = 'https://{{ chef_server_ip.stdout }}'

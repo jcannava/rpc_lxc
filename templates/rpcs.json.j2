@@ -1,0 +1,78 @@
+{
+  "name": "rpcs",
+  "description": "RPC Example Environment",
+  "cookbook_versions": {
+  },
+  "json_class": "Chef::Environment",
+  "chef_type": "environment",
+  "default_attributes": {
+  },
+  "override_attributes": {
+    "developer_mode": false,
+    "monitoring" : {
+      "metric_provider" : "collectd",
+      "procmon_provider" : "monit"
+    },
+    "glance": {
+      "image_upload": true,
+      "images": ["cirros", "precise"]
+    },
+    "nova": {
+      "ratelimit" : {
+        "api" : { "enabled" : true },
+        "volume" : { "enabled" : true }
+      },
+      "libvirt": { "virt_type": "lxc" },
+      "networks": {
+        "public": {
+            "label": "public",
+            "ipv4_cidr": "10.10.100.0/24",
+            "bridge": "br100",
+            "bridge_dev": "eth0.100",
+            "dns1": "8.8.8.8",
+            "dns2": "8.8.4.4"
+        }
+      }
+    },
+    "vips": {
+      "rabbitmq-queue": "10.0.3.240",
+      "horizon-dash": "10.0.3.241",
+      "horizon-dash_ssl": "10.0.3.241",
+      "keystone-service-api": "10.0.3.241",
+      "keystone-admin-api": "10.0.3.241",
+      "keystone-internal-api": "10.0.3.241",
+      "nova-xvpvnc-proxy": "10.0.3.241",
+      "nova-api": "10.0.3.241",
+      "nova-ec2-public": "10.0.3.241",
+      "nova-novnc-proxy": "10.0.3.241",
+      "cinder-api": "10.0.3.241",
+      "glance-api": "10.0.3.241",
+      "glance-registry": "10.0.3.241",
+      "swift-proxy": "10.0.3.241",
+      "mysql-db": "10.0.3.242",
+      "config": {
+        "10.0.3.240": {
+          "vrid": 11,
+          "network": "public"
+        },
+        "10.0.3.241": {
+          "vrid": 12,
+          "network": "public"
+        },
+        "10.0.3.242": {
+          "vrid": 10,
+          "network": "public"
+        }
+      }
+    },
+    "mysql": {
+      "allow_remote_root": true,
+      "root_network_acl": "%"
+    },
+    "osops_networks": {
+      "nova": "10.0.3.0/24",
+      "public": "10.0.3.0/24",
+      "management": "10.0.3.0/24"
+    }
+  }
+}

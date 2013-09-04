@@ -1,0 +1,5 @@
+chef_server_url 'https://{{ chef_server_ip.stdout }}'
+client_key '/etc/chef/admin.pem'
+validation_key '/etc/chef/validation.pem'
+node_name 'admin'
+environment 'rpcs'

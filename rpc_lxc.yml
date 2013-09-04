@@ -1,0 +1,262 @@
+---
+- name: Build a Rackspace Cloud Server
+  gather_facts: False
+  hosts: localhost
+  connection: local
+  tags:
+    - remoteconfig
+    - boot
+
+  tasks:
+  - name: Server Build Request
+    local_action:
+      module: rax
+      credentials: ${creds}
+      service: cloudservers
+      name: ${name}
+      flavor: ${flavor}
+      image: ${image}
+      files:
+        /root/.ssh/authorized_keys: ~/.ssh/id_rsa.pub
+      wait: yes
+      wait_timeout: 900
+      state: present
+    register: lxc_host
+
+  - name: register lxc_host
+    action: add_host hostname=lxc_host
+            ansible_ssh_host=${lxc_host.instances[0].accessIPv4}
+
+- name: Prep host
+  hosts: lxc_host
+  user: root
+  gather_facts: false
+  tags:
+    - remoteconfig
+    - lxc
+
+  tasks:
+  - name: update apt-cache
+    apt: update_cache=yes
+  - name: Install git-core
+    apt: pkg=git-core state=present
+  - name: Install curl
+    apt: pkg=curl state=present
+  - name: Install lxc
+    apt: pkg=lxc state=present
+  - name: install wget
+    apt: pkg=wget state=present
+
+
+
+- name: Create Chef Server Container
+  hosts: lxc_host
+  user: root
+  gather_facts: true
+  vars:
+    chef_container_path: /var/lib/lxc/chef_server/rootfs
+  tags:
+    - remoteconfig
+    - lxc
+
+  tasks:
+    - name: check for already created ssh-key
+      action: shell ls -la /root/.ssh
+      register: ssh_result
+
+    - name: generate ssh-keys
+      command: ssh-keygen -b 2048 -t rsa -f /root/.ssh/id_rsa -N ''
+      when: ssh_result|failed
+
+    - name: check for already created chef-server lxc container
+      action: shell /usr/bin/lxc-list | grep chef_server
+      register: cs_lxc_result
+      ignore_errors: yes
+
+    - name: Create lxc_container with ubuntu
+      shell: executable=/bin/bash LANG=en_US.UTF-8 /usr/bin/lxc-create -t ubuntu -n chef_server -- -S /root/.ssh/id_rsa.pub
+      when: cs_lxc_result|failed
+
+    - name: Start chef_server container
+      command: /usr/bin/lxc-start -n chef_server -d
+
+    - name: make ssh directory in container
+      command: mkdir -p ${chef_container_path}/root/.ssh
+
+    - name: put ssh key into container
+      command: cp /root/.ssh/id_rsa.pub ${chef_container_path}/root/.ssh/authorized_keys
+
+    - name: check if chef-server package already downloaded
+      action: shell ls -la /root/chef-server_11.0.8-1.ubuntu.12.04_amd64.deb
+      register: cs_pkg_result
+      ignore_errors: yes
+
+    - name: download chef server
+      action: shell wget https://opscode-omnibus-packages.s3.amazonaws.com/ubuntu/12.04/x86_64/chef-server_11.0.8-1.ubuntu.12.04_amd64.deb
+      when: cs_pkg_result|failed
+
+    - name: place chef server in container
+      action: shell cp /root/chef-server_11.0.8-1.ubuntu.12.04_amd64.deb ${chef_container_path}/root/
+
+    - name: Get chef-server ip
+      shell: lxc-list | grep chef_server | awk '{print $3}'
+      register: chef_server_ip
+
+    - name: Check if chef-server already installed
+      shell: ssh -o StrictHostKeyChecking=no root@{{chef_server_ip.stdout}} "dpkg -l | grep chef-server"
+      register: cs_installed
+      ignore_errors: yes
+
+    - name: Install Chef Server Package
+      command: ssh -o StrictHostKeyChecking=no root@{{chef_server_ip.stdout}} dpkg -i /root/chef-server_11.0.8-1.ubuntu.12.04_amd64.deb
+      when: cs_installed|failed
+
+    - name: Make chef-server directory
+      command: mkdir -p {{ chef_container_path}}/etc/chef-server
+
+    - name: Setup ip configuration for chef-server
+      template: src=templates/chef-server.rb.j2 dest={{ chef_container_path}}/etc/chef-server/chef-server.rb
+
+    - name: Configure Chef Server
+      command: ssh -o StrictHostKeyChecking=no root@{{chef_server_ip.stdout}} chef-server-ctl reconfigure
+
+- name: Setup RPC Controller
+  hosts: lxc_host
+  user: root
+  vars:
+    chef_container_path: /var/lib/lxc/chef_server/rootfs
+    rpc_container_path: /var/lib/lxc/rpc_controller1/rootfs
+  gather_facts: true
+  tags:
+    - remoteconfig
+    - lxc
+
+  tasks:
+    - name: check for already created chef-server lxc container
+      action: shell /usr/bin/lxc-list | grep rpc_controller1
+      register: rpc_cont_result
+      ignore_errors: yes
+
+    - name: Create lxc_container with ubuntu
+      shell: executable=/bin/bash LANG=en_US.UTF-8 /usr/bin/lxc-create -t ubuntu -n rpc_controller1
+      when: rpc_cont_result|failed
+
+    - name: Start rpc_controller1 container
+      action: shell lxc-start -n rpc_controller1 -d
+
+    - name: make ssh directory in container
+      command: mkdir -p ${rpc_container_path}/root/.ssh
+
+    - name: put ssh key into container
+      command: cp /root/.ssh/id_rsa.pub ${rpc_container_path}/root/.ssh/authorized_keys
+
+    - name: check if chef-client already downloaded and in place
+      action: shell ls -la {{ rpc_container_path}}/root/chef_11.6.0-1.ubuntu.13.04_amd64.deb
+      register: cc_result
+      ignore_errors: yes
+
+    - name: download chef client
+      action: shell wget https://opscode-omnibus-packages.s3.amazonaws.com/ubuntu/13.04/x86_64/chef_11.6.0-1.ubuntu.13.04_amd64.deb
+      when: cc_result|failed
+
+    - name: place chef client in container
+      action: shell cp chef_11.6.0-1.ubuntu.13.04_amd64.deb ${rpc_container_path}/root/
+
+    - name: get rpc_controller_ip
+      shell: lxc-list | grep rpc_controller1 | awk '{print $3}' | cut -d , -f1
+      register: rpc_controller1_ip
+
+    - debug: msg={{rpc_controller1_ip.stdout}}
+    - name: install chef-client in container
+      shell: ssh -o StrictHostKeyChecking=no root@{{rpc_controller1_ip.stdout}} "dpkg -i /root/chef_11.6.0-1.ubuntu.13.04_amd64.deb"
+
+    - name: make /etc/chef if not already existing on client
+      action: shell mkdir -p ${rpc_container_path}/etc/chef
+
+    - name: write client.rb
+      template: src=templates/client.rb.j2 dest=${rpc_container_path}/etc/chef/client.rb
+
+    - name: make .chef in root home directory
+      action: shell mkdir -p {{ rpc_container_path}}/root/.chef
+
+    - name: write knife.rb
+      template: src=templates/knife.rb.j2 dest={{ rpc_container_path}}/root/.chef/knife.rb
+
+    - name: bring admin pem from server to client
+      action: shell cp ${chef_container_path}/etc/chef-server/admin.pem {{ rpc_container_path}}/etc/chef/
+
+    - name: bring validation pem from server to client
+      action: shell cp ${chef_container_path}/etc/chef-server/chef-validator.pem {{ rpc_container_path}}/etc/chef/validation.pem
+
+    - name: put environment template into container
+      template: src=templates/rpcs.json.j2 dest=${rpc_container_path}/root/rpcs.json
+
+    - name: create ha_environment
+      action: shell ssh -o StrictHostKeyChecking=no root@{{rpc_controller1_ip.stdout}} "/usr/bin/knife environment from file /root/rpcs.json"
+
+    - name: run chef-client to register
+      action: shell ssh -o StrictHostKeyChecking=no root@{{rpc_controller1_ip.stdout}} chef-client
+
+    - name: chef for rcbops cookbook repo already in container
+      action: shell ls -la ${rpc_container_path}/root/chef-cookbooks
+      register: gc_result
+      ignore_errors: yes
+
+    - name: checkout grizzly
+      shell: chdir=${rpc_container_path}/root/chef-cookbooks git checkout ${openstack-ver}
+
+    - name: clone rcbops git repo for cookbooks
+      action: shell git clone --recursive https://github.com/rcbops/chef-cookbooks ${rpc_container_path}/root/chef-cookbooks
+      when: gc_result|failed
+
+    - name: update cookbooks
+      shell: chdir=${rpc_container_path}/root/chef-cookbooks git pull --recurse-submodules=yes
+
+    - name: checkout latest grizzly tag
+      shell: chdir=${rpc_container_path}/root/chef-cookbooks git checkout `git describe --abbrev=0`
+
+    - name: upload RPC roles
+      action: shell ssh -o StrictHostKeyChecking=no root@{{rpc_controller1_ip.stdout}} "knife role from file /root/chef-cookbooks/roles/*.rb"
+
+    - name: upload RPC cookbooks
+      action: shell ssh -o StrictHostKeyChecking=no root@{{rpc_controller1_ip.stdout}} "knife cookbook upload -o /root/chef-cookbooks/cookbooks -a"
+
+    - name: update rpc_controller1 run list
+      action: shell ssh -o StrictHostKeyChecking=no root@{{rpc_controller1_ip.stdout}} "knife node run_list set rpc_controller1 'role[ha-controller1]'"
+
+    - name: run chef-client on rpc_controller1
+      action: shell ssh -o StrictHostKeyChecking=no root@{{rpc_controller1_ip.stdout}} "chef-client"
+      ignore_errors: yes
+
+- name: Setup Cloud Server as Compute Node
+  hosts: lxc_host
+  user: root
+  vars:
+    chef_container_path: /var/lib/lxc/chef_server/rootfs
+    rpc_container_path: /var/lib/lxc/rpc_controller1/rootfs
+  gather_facts: true
+  tags:
+    - remoteconfig
+    - lxc
+
+  tasks:
+    - name: install chef-client
+      action: dpkg -i /root/chef_11.6.0-1.ubuntu.13.04_amd64.deb
+
+    - name: make /etc/chef if not already existing on client
+      action: shell mkdir -p /etc/chef
+
+    - name: write client.rb
+      template: src=templates/client.rb.j2 dest=/etc/chef/client.rb
+
+    - name: make .chef in root home directory
+      action: shell mkdir -p /root/.chef
+
+    - name: write knife.rb
+      template: src=templates/knife.rb.j2 dest=/root/.chef/knife.rb
+
+    - name: bring admin pem from server to client
+      action: shell cp ${chef_container_path}/etc/chef-server/admin.pem /etc/chef/
+
+    - name: bring validation pem from server to client
+      action: shell cp ${chef_container_path}/etc/chef-server/chef-validator.pem /etc/chef/validation.pem

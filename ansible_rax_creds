@@ -1,0 +1,3 @@
+[rackspace_cloud]
+username = <rackspace cloud username>
+api_key = <rackspace cloud api_key>
