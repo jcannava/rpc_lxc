@@ -241,7 +241,7 @@
 
   tasks:
     - name: install chef-client
-      action: dpkg -i /root/chef_11.6.0-1.ubuntu.13.04_amd64.deb
+      action: shell dpkg -i /root/chef_11.6.0-1.ubuntu.13.04_amd64.deb
 
     - name: make /etc/chef if not already existing on client
       action: shell mkdir -p /etc/chef
@@ -260,3 +260,16 @@
 
     - name: bring validation pem from server to client
       action: shell cp ${chef_container_path}/etc/chef-server/chef-validator.pem /etc/chef/validation.pem
+
+    - name: get hostname
+      action: shell hostname -s
+      register: lxc_hostname
+
+    - name: run chef-client to register
+      action: shell chef-client
+
+    - name: set node run_list to single-compute
+      action: shell knife node run_list set {{ lxc_hostname.stdout }} 'role[single-compute]'
+
+    - name: run chef-client to apply run-list
+      action: shell chef-client
