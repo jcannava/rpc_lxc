@@ -1,7 +1,17 @@
 ---
 creds: ~/.ansible_rax_creds
 region: ORD
-name: rpcs-poc-server
+name: rpc-poc-server
 flavor: 6
 image: 1bbc5e56-ca2c-40a5-94b8-aa44822c3947 # recommend raring for ease of deployment
 openstack-ver: grizzly
+
+# Needed for lxc.yml, names the containers.
+chef_container_name: chef_server
+controller_container_name: rpc_controller1
+
+# Chef Download Package Information
+chef_server_url: https://opscode-omnibus-packages.s3.amazonaws.com/ubuntu/12.04/x86_64
+chef_client_url: https://opscode-omnibus-packages.s3.amazonaws.com/ubuntu/13.04/x86_64
+chef_server_pkg_name: chef-server_11.0.8-1.ubuntu.12.04_amd64.deb
+chef_client_pkg_name: chef_11.6.0-1.ubuntu.13.04_amd64.deb
