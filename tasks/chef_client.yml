@@ -1,0 +1,8 @@
+---
+- name: check if chef-client is already downloaded
+  shell: ls -la {{ path }}/root/chef_11.6.0-1.ubuntu.13.04_amd64.deb
+  register: cc_result
+  ignore_errors: yes
+
+- name: download chef client
+

@@ -1,0 +1,13 @@
+---
+- name: check for existing container
+  shell: lxc-list | grep {{ container }}
+  register: exists
+  ignore_errors: yes
+
+- name: create container
+  shell: executable=/bin/bash LANG=en_US.UTF-8 /usr/bin/lxc-create -t ubuntu -n {{ container }}
+  register: created
+  when: exists|failed
+
+- name: start container
+  command: /usr/bin/lxc-start -n {{ container }} -d

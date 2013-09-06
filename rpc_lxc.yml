@@ -36,18 +36,13 @@
     - lxc
 
   tasks:
-  - name: update apt-cache
-    apt: update_cache=yes
-  - name: Install git-core
-    apt: pkg=git-core state=present
-  - name: Install curl
-    apt: pkg=curl state=present
-  - name: Install lxc
-    apt: pkg=lxc state=present
-  - name: install wget
-    apt: pkg=wget state=present
-
-
+  - include: tasks/packages.yml
+    vars:
+      package_list:
+        - git-core
+        - curl
+        - lxc
+        - wget
 
 - name: Create Chef Server Container
   hosts: lxc_host
@@ -60,32 +55,9 @@
     - lxc
 
   tasks:
-    - name: check for already created ssh-key
-      action: shell ls -la /root/.ssh/id_rsa
-      register: ssh_result
-      ignore_errors: yes
 
-    - name: generate ssh-keys
-      command: ssh-keygen -b 2048 -t rsa -f /root/.ssh/id_rsa -N ''
-      when: ssh_result|failed
-
-    - name: check for already created chef-server lxc container
-      action: shell /usr/bin/lxc-list | grep chef_server
-      register: cs_lxc_result
-      ignore_errors: yes
-
-    - name: Create lxc_container with ubuntu
-      shell: executable=/bin/bash LANG=en_US.UTF-8 /usr/bin/lxc-create -t ubuntu -n chef_server -- -S /root/.ssh/id_rsa.pub
-      when: cs_lxc_result|failed
-
-    - name: Start chef_server container
-      command: /usr/bin/lxc-start -n chef_server -d
-
-    - name: make ssh directory in container
-      command: mkdir -p ${chef_container_path}/root/.ssh
-
-    - name: put ssh key into container
-      command: cp /root/.ssh/id_rsa.pub ${chef_container_path}/root/.ssh/authorized_keys
+    - include: tasks/lxc.yml container=${chef_container_name}
+    - include: tasks/ssh.yml container=${chef_container_path}
 
     - name: check if chef-server package already downloaded
       action: shell ls -la /root/chef-server_11.0.8-1.ubuntu.12.04_amd64.deb
@@ -133,23 +105,8 @@
     - lxc
 
   tasks:
-    - name: check for already created chef-server lxc container
-      action: shell /usr/bin/lxc-list | grep rpc_controller1
-      register: rpc_cont_result
-      ignore_errors: yes
-
-    - name: Create lxc_container with ubuntu
-      shell: executable=/bin/bash LANG=en_US.UTF-8 /usr/bin/lxc-create -t ubuntu -n rpc_controller1
-      when: rpc_cont_result|failed
-
-    - name: Start rpc_controller1 container
-      action: shell lxc-start -n rpc_controller1 -d
-
-    - name: make ssh directory in container
-      command: mkdir -p ${rpc_container_path}/root/.ssh
-
-    - name: put ssh key into container
-      command: cp /root/.ssh/id_rsa.pub ${rpc_container_path}/root/.ssh/authorized_keys
+    - include: tasks/lxc.yml container=${controller_container_name}
+    - include: tasks/ssh.yml container=${rpc_container_path}
 
     - name: check if chef-client already downloaded and in place
       action: shell ls -la {{ rpc_container_path}}/root/chef_11.6.0-1.ubuntu.13.04_amd64.deb

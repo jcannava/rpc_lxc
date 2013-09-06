@@ -1,0 +1,19 @@
+---
+- name: Server Build Request
+    local_action:
+      module: rax
+      credentials: ${creds}
+      service: cloudservers
+      name: ${name}
+      flavor: ${flavor}
+      image: ${image}
+      files:
+        /root/.ssh/authorized_keys: ~/.ssh/id_rsa.pub
+      wait: yes
+      wait_timeout: 900
+      state: present
+    register: ${name}
+
+- name: register ${name}
+   action: add_host hostname=${name}
+           ansible_ssh_host=${${name}.instances[0].accessIPv4}
